@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>User Details</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="panel">
+        <p class="eyebrow">Step 1</p>
+        <h1>Collect User Information</h1>
+        <form id="userForm" class="form">
+          <label>
+            User Name
+            <input id="name" name="name" type="text" placeholder="Enter user name" required />
+          </label>
+
+          <label>
+            Address
+            <textarea id="address" name="address" rows="4" placeholder="Enter address" required></textarea>
+          </label>
+
+          <label>
+            Phone Number
+            <input id="phone" name="phone" type="tel" placeholder="Enter phone number" required />
+          </label>
+
+          <button type="submit">Next</button>
+          <p id="message" class="message" role="status"></p>
+        </form>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>

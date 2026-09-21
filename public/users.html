@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>All Users</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="page wide">
+      <section class="panel">
+        <div class="header-row">
+          <div>
+            <p class="eyebrow">Step 2</p>
+            <h1>All Users</h1>
+          </div>
+          <a class="secondary-button" href="/">Add User</a>
+        </div>
+
+        <div id="stateMessage" class="message">Loading users...</div>
+        <div class="table-wrap">
+          <table id="usersTable" hidden>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Address</th>
+                <th>Phone</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody id="usersBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <script src="/users.js"></script>
+  </body>
+</html>
