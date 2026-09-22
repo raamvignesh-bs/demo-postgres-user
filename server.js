@@ -525,6 +525,45 @@ app.get(
   }
 );
 
+// ==================================================
+// CLOUDINARY CONNECTION TEST
+// ==================================================
+
+app.get('/api/cloudinary-test', async (_req, res) => {
+  try {
+
+    const config = cloudinary.config();
+
+    console.log('Cloudinary config check:', {
+      cloud_name: config.cloud_name,
+      api_key_exists: !!config.api_key,
+      api_secret_exists: !!config.api_secret
+    });
+
+    const result = await cloudinary.api.ping();
+
+    console.log('Cloudinary connection successful.');
+
+    return res.status(200).json({
+      message: 'Cloudinary connection successful.',
+      cloud_name: config.cloud_name,
+      status: result.status
+    });
+
+  } catch (error) {
+
+    console.error(
+      'Cloudinary connection failed:',
+      error
+    );
+
+    return res.status(500).json({
+      error: 'Cloudinary connection failed.',
+      details: error.message
+    });
+  }
+});
+
 
 // ==================================================
 // HEALTH CHECK
