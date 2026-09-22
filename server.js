@@ -477,17 +477,34 @@ app.post(
       );
 
 
-      const cloudinaryResult =
-        await cloudinary.uploader.upload(
-          tempFilePath,
-          {
-            folder:
-              'demo-postgres-user',
+const cloudinaryResult = await new Promise(
+  (resolve, reject) => {
 
-            resource_type:
-              'image'
+    const uploadStream =
+      cloudinary.uploader.upload_stream(
+        {
+          folder: 'demo-postgres-user',
+          resource_type: 'image'
+        },
+        (error, result) => {
+
+          if (error) {
+            reject(error);
+            return;
           }
-        );
+
+          resolve(result);
+        }
+      );
+
+    const fileStream =
+      fs.createReadStream(tempFilePath);
+
+    fileStream.on('error', reject);
+
+    fileStream.pipe(uploadStream);
+  }
+);
 
 
       console.log(
