@@ -9,40 +9,62 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// PostgreSQL connection
+
+// ==================================================
+// POSTGRESQL
+// ==================================================
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production'
-    ? { rejectUnauthorized: false }
-    : false
+  ssl:
+    process.env.NODE_ENV === 'production'
+      ? { rejectUnauthorized: false }
+      : false
 });
 
-// Multer configuration
-// Image is temporarily kept in memory before uploading to Cloudinary
+
+// ==================================================
+// MULTER
+// ==================================================
+
 const upload = multer({
   storage: multer.memoryStorage(),
+
   limits: {
     fileSize: 10 * 1024 * 1024 // 10 MB
   },
+
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
+    const allowedTypes = [
+      'image/jpeg',
+      'image/png',
+      'image/webp'
+    ];
+
+    if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only image files are allowed.'));
+      cb(
+        new Error(
+          'Only JPG, PNG and WEBP images are allowed.'
+        )
+      );
     }
   }
 });
 
-// Initialize PostgreSQL tables
+
+// ==================================================
+// DATABASE INITIALIZATION
+// ==================================================
+
 async function initializeDatabase() {
+
   if (!process.env.DATABASE_URL) {
-    console.warn(
-      'DATABASE_URL is not set. Add PostgreSQL connection string before running the app.'
-    );
-    return;
+    throw new Error('DATABASE_URL is not configured.');
   }
 
-  // Existing users table
+  // Users table
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -53,232 +75,551 @@ async function initializeDatabase() {
     );
   `);
 
+
   // Images table
   await pool.query(`
     CREATE TABLE IF NOT EXISTS images (
       id SERIAL PRIMARY KEY,
-      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
       image_url TEXT NOT NULL,
       public_id TEXT NOT NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+
+      created_at TIMESTAMP NOT NULL
+        DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  console.log('Database tables initialized.');
 }
 
+
+// ==================================================
+// MIDDLEWARE
+// ==================================================
+
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+
+app.use(
+  express.static(
+    path.join(__dirname, 'public')
+  )
+);
 
 
-// --------------------------------------------------
+// ==================================================
 // USER APIs
-// --------------------------------------------------
+// ==================================================
 
-// Create user
+
+// CREATE USER
 app.post('/api/users', async (req, res) => {
+
   try {
-    const { name, address, phone } = req.body;
+
+    const {
+      name,
+      address,
+      phone
+    } = req.body;
+
 
     if (!name || !address || !phone) {
+
       return res.status(400).json({
-        error: 'Name, address, and phone number are required.'
+        error:
+          'Name, address, and phone number are required.'
       });
+
     }
+
 
     const result = await pool.query(
-      `INSERT INTO users (name, address, phone)
-       VALUES ($1, $2, $3)
-       RETURNING id, name, address, phone, created_at`,
-      [name.trim(), address.trim(), phone.trim()]
-    );
-
-    res.status(201).json({
-      user: result.rows[0]
-    });
-
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      error: 'Unable to save user.'
-    });
-  }
-});
-
-
-// Get all users
-app.get('/api/users', async (_req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT id, name, address, phone, created_at
-       FROM users
-       ORDER BY id DESC`
-    );
-
-    res.json({
-      users: result.rows
-    });
-
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      error: 'Unable to fetch users.'
-    });
-  }
-});
-
-
-// --------------------------------------------------
-// IMAGE APIs
-// --------------------------------------------------
-
-// Upload image to Cloudinary
-app.post('/api/images', upload.single('image'), async (req, res) => {
-  try {
-
-    if (!req.file) {
-      return res.status(400).json({
-        error: 'Image is required.'
-      });
-    }
-
-    const userId = req.body.user_id;
-
-    if (!userId) {
-      return res.status(400).json({
-        error: 'user_id is required.'
-      });
-    }
-
-    // Check user exists
-    const userResult = await pool.query(
-      'SELECT id FROM users WHERE id = $1',
-      [userId]
-    );
-
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({
-        error: 'User not found.'
-      });
-    }
-
-    // Upload buffer to Cloudinary
-    const uploadResult = await new Promise((resolve, reject) => {
-
-      const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          folder: 'demo-postgres-user'
-        },
-        (error, result) => {
-
-          if (error) {
-            reject(error);
-          } else {
-            resolve(result);
-          }
-
-        }
-      );
-
-      uploadStream.end(req.file.buffer);
-    });
-
-
-    // Save Cloudinary information in PostgreSQL
-    const result = await pool.query(
-      `INSERT INTO images (
-        user_id,
-        image_url,
-        public_id
+      `
+      INSERT INTO users (
+        name,
+        address,
+        phone
       )
       VALUES ($1, $2, $3)
+
       RETURNING
         id,
-        user_id,
-        image_url,
-        public_id,
-        created_at`,
+        name,
+        address,
+        phone,
+        created_at
+      `,
       [
-        userId,
-        uploadResult.secure_url,
-        uploadResult.public_id
+        name.trim(),
+        address.trim(),
+        phone.trim()
       ]
     );
 
 
-    res.status(201).json({
-      message: 'Image uploaded successfully.',
-      image: result.rows[0]
+    return res.status(201).json({
+      user: result.rows[0]
     });
+
 
   } catch (error) {
 
-    console.error('Image upload failed:', error);
-
-    res.status(500).json({
-      error: 'Unable to upload image.'
-    });
-  }
-});
-
-
-// Get images for a user
-app.get('/api/users/:userId/images', async (req, res) => {
-  try {
-
-    const { userId } = req.params;
-
-    const result = await pool.query(
-      `SELECT
-        id,
-        user_id,
-        image_url,
-        public_id,
-        created_at
-       FROM images
-       WHERE user_id = $1
-       ORDER BY id DESC`,
-      [userId]
+    console.error(
+      'Create user failed:',
+      error
     );
 
-    res.json({
-      images: result.rows
+    return res.status(500).json({
+      error: 'Unable to save user.'
     });
+
+  }
+
+});
+
+
+// GET ALL USERS
+app.get('/api/users', async (_req, res) => {
+
+  try {
+
+    const result = await pool.query(`
+      SELECT
+        id,
+        name,
+        address,
+        phone,
+        created_at
+      FROM users
+      ORDER BY id DESC
+    `);
+
+
+    return res.json({
+      users: result.rows
+    });
+
 
   } catch (error) {
 
-    console.error(error);
+    console.error(
+      'Fetch users failed:',
+      error
+    );
 
-    res.status(500).json({
-      error: 'Unable to fetch images.'
+    return res.status(500).json({
+      error: 'Unable to fetch users.'
     });
+
   }
+
 });
 
 
-// --------------------------------------------------
+// ==================================================
+// IMAGE APIs
+// ==================================================
+
+
+// UPLOAD IMAGE
+app.post(
+  '/api/images',
+  upload.single('image'),
+  async (req, res) => {
+
+    try {
+
+      // -------------------------------
+      // Check image
+      // -------------------------------
+
+      if (!req.file) {
+
+        return res.status(400).json({
+          error: 'Image is required.'
+        });
+
+      }
+
+
+      // -------------------------------
+      // Check user_id
+      // -------------------------------
+
+      const userId = parseInt(
+        req.body.user_id,
+        10
+      );
+
+
+      if (
+        !Number.isInteger(userId) ||
+        userId <= 0
+      ) {
+
+        return res.status(400).json({
+          error:
+            'A valid user_id is required.'
+        });
+
+      }
+
+
+      // -------------------------------
+      // Debug received file
+      // -------------------------------
+
+      console.log('Received file:', {
+        originalname:
+          req.file.originalname,
+
+        mimetype:
+          req.file.mimetype,
+
+        size:
+          req.file.size,
+
+        bufferSize:
+          req.file.buffer
+            ? req.file.buffer.length
+            : 0
+      });
+
+
+      // -------------------------------
+      // Make sure buffer exists
+      // -------------------------------
+
+      if (
+        !req.file.buffer ||
+        req.file.buffer.length === 0
+      ) {
+
+        return res.status(400).json({
+          error:
+            'Uploaded image file is empty.'
+        });
+
+      }
+
+
+      // -------------------------------
+      // Check user exists
+      // -------------------------------
+
+      const userResult =
+        await pool.query(
+          `
+          SELECT id
+          FROM users
+          WHERE id = $1
+          `,
+          [userId]
+        );
+
+
+      if (
+        userResult.rows.length === 0
+      ) {
+
+        return res.status(404).json({
+          error: 'User not found.'
+        });
+
+      }
+
+
+      // -------------------------------
+      // Convert image to Data URI
+      // -------------------------------
+
+      const base64Image =
+        req.file.buffer.toString(
+          'base64'
+        );
+
+
+      const dataURI =
+        `data:${req.file.mimetype};base64,${base64Image}`;
+
+
+      console.log(
+        'Uploading image to Cloudinary...'
+      );
+
+
+      // -------------------------------
+      // Upload to Cloudinary
+      // -------------------------------
+
+      const cloudinaryResult =
+        await cloudinary.uploader.upload(
+          dataURI,
+          {
+            folder:
+              'demo-postgres-user',
+
+            resource_type:
+              'image'
+          }
+        );
+
+
+      console.log(
+        'Cloudinary upload successful:',
+        cloudinaryResult.public_id
+      );
+
+
+      // -------------------------------
+      // Save URL in PostgreSQL
+      // -------------------------------
+
+      const databaseResult =
+        await pool.query(
+          `
+          INSERT INTO images (
+            user_id,
+            image_url,
+            public_id
+          )
+
+          VALUES ($1, $2, $3)
+
+          RETURNING
+            id,
+            user_id,
+            image_url,
+            public_id,
+            created_at
+          `,
+          [
+            userId,
+            cloudinaryResult.secure_url,
+            cloudinaryResult.public_id
+          ]
+        );
+
+
+      // -------------------------------
+      // Return result
+      // -------------------------------
+
+      return res
+        .status(201)
+        .json({
+
+          message:
+            'Image uploaded successfully.',
+
+          image:
+            databaseResult.rows[0]
+
+        });
+
+
+    } catch (error) {
+
+      console.error(
+        'Image upload failed:',
+        error
+      );
+
+
+      return res
+        .status(500)
+        .json({
+
+          error:
+            'Unable to upload image.',
+
+          details:
+            error.message ||
+            'Unknown error'
+
+        });
+
+    }
+
+  }
+);
+
+
+// ==================================================
+// GET IMAGES FOR USER
+// ==================================================
+
+app.get(
+  '/api/users/:userId/images',
+  async (req, res) => {
+
+    try {
+
+      const userId =
+        parseInt(
+          req.params.userId,
+          10
+        );
+
+
+      if (
+        !Number.isInteger(userId) ||
+        userId <= 0
+      ) {
+
+        return res
+          .status(400)
+          .json({
+            error:
+              'Invalid user ID.'
+          });
+
+      }
+
+
+      const result =
+        await pool.query(
+          `
+          SELECT
+            id,
+            user_id,
+            image_url,
+            public_id,
+            created_at
+
+          FROM images
+
+          WHERE user_id = $1
+
+          ORDER BY id DESC
+          `,
+          [userId]
+        );
+
+
+      return res.json({
+        images: result.rows
+      });
+
+
+    } catch (error) {
+
+      console.error(
+        'Fetch images failed:',
+        error
+      );
+
+
+      return res
+        .status(500)
+        .json({
+          error:
+            'Unable to fetch images.'
+        });
+
+    }
+
+  }
+);
+
+
+// ==================================================
 // HEALTH CHECK
-// --------------------------------------------------
+// ==================================================
 
-app.get('/health', (_req, res) => {
-  res.json({
-    status: 'ok'
-  });
-});
+app.get(
+  '/health',
+  (_req, res) => {
+
+    res.json({
+      status: 'ok'
+    });
+
+  }
+);
 
 
-// --------------------------------------------------
+// ==================================================
+// MULTER ERROR HANDLER
+// ==================================================
+
+app.use(
+  (error, _req, res, next) => {
+
+    if (
+      error instanceof
+      multer.MulterError
+    ) {
+
+      if (
+        error.code ===
+        'LIMIT_FILE_SIZE'
+      ) {
+
+        return res
+          .status(400)
+          .json({
+            error:
+              'Image must be smaller than 10 MB.'
+          });
+
+      }
+
+
+      return res
+        .status(400)
+        .json({
+          error: error.message
+        });
+
+    }
+
+
+    if (
+      error &&
+      error.message ===
+        'Only JPG, PNG and WEBP images are allowed.'
+    ) {
+
+      return res
+        .status(400)
+        .json({
+          error: error.message
+        });
+
+    }
+
+
+    next(error);
+
+  }
+);
+
+
+// ==================================================
 // START SERVER
-// --------------------------------------------------
+// ==================================================
 
 initializeDatabase()
+
   .then(() => {
 
-    app.listen(PORT, () => {
-      console.log(`PostgreSQL users demo running on port ${PORT}`);
-    });
+    app.listen(
+      PORT,
+      () => {
+
+        console.log(
+          `Server running on port ${PORT}`
+        );
+
+      }
+    );
 
   })
+
   .catch((error) => {
 
     console.error(
@@ -287,4 +628,5 @@ initializeDatabase()
     );
 
     process.exit(1);
+
   });
