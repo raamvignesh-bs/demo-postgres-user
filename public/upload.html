@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>Upload Image</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: bold;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+
+    button {
+      padding: 12px 20px;
+      cursor: pointer;
+    }
+
+    #status {
+      margin-top: 20px;
+    }
+
+    #uploadedImage {
+      margin-top: 20px;
+      max-width: 100%;
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>Upload Image</h1>
+
+  <div class="form-group">
+
+    <label for="userId">
+      User ID
+    </label>
+
+    <input
+      type="number"
+      id="userId"
+      value="1"
+      min="1"
+    >
+
+  </div>
+
+
+  <div class="form-group">
+
+    <label for="imageInput">
+      Select Image
+    </label>
+
+    <input
+      type="file"
+      id="imageInput"
+      accept="image/jpeg,image/png,image/webp"
+    >
+
+  </div>
+
+
+  <button id="uploadButton">
+    Upload Image
+  </button>
+
+
+  <div id="status"></div>
+
+
+  <img
+    id="uploadedImage"
+    alt="Uploaded image"
+  >
+
+
+  <script>
+
+    const uploadButton =
+      document.getElementById(
+        'uploadButton'
+      );
+
+    const imageInput =
+      document.getElementById(
+        'imageInput'
+      );
+
+    const userIdInput =
+      document.getElementById(
+        'userId'
+      );
+
+    const status =
+      document.getElementById(
+        'status'
+      );
+
+    const uploadedImage =
+      document.getElementById(
+        'uploadedImage'
+      );
+
+
+    uploadButton.addEventListener(
+      'click',
+      async () => {
+
+        const userId =
+          userIdInput.value;
+
+        const imageFile =
+          imageInput.files[0];
+
+
+        if (!userId) {
+
+          status.textContent =
+            'Please enter a user ID.';
+
+          return;
+        }
+
+
+        if (!imageFile) {
+
+          status.textContent =
+            'Please select an image.';
+
+          return;
+        }
+
+
+        const formData =
+          new FormData();
+
+
+        formData.append(
+          'user_id',
+          userId
+        );
+
+
+        formData.append(
+          'image',
+          imageFile
+        );
+
+
+        try {
+
+          uploadButton.disabled =
+            true;
+
+          status.textContent =
+            'Uploading image...';
+
+
+          const response =
+            await fetch(
+              '/api/images',
+              {
+                method: 'POST',
+
+                // Do NOT set Content-Type.
+                // Browser creates multipart boundary.
+                body: formData
+              }
+            );
+
+
+          const data =
+            await response.json();
+
+
+          if (!response.ok) {
+
+            throw new Error(
+              data.details ||
+              data.error ||
+              'Upload failed.'
+            );
+
+          }
+
+
+          console.log(
+            'Upload successful:',
+            data
+          );
+
+
+          status.textContent =
+            'Image uploaded successfully!';
+
+
+          uploadedImage.src =
+            data.image.image_url;
+
+
+          uploadedImage.style.display =
+            'block';
+
+
+        } catch (error) {
+
+          console.error(
+            'Upload failed:',
+            error
+          );
+
+
+          status.textContent =
+            `Upload failed: ${error.message}`;
+
+
+        } finally {
+
+          uploadButton.disabled =
+            false;
+
+        }
+
+      }
+    );
+
+  </script>
+
+</body>
+</html>
