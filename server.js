@@ -439,6 +439,15 @@ app.post(
 
       }
 
+      
+// DEBUG: verify actual image bytes
+const fileBuffer = fs.readFileSync(tempFilePath);
+
+console.log('FILE DEBUG:', {
+  size: fileBuffer.length,
+  first16Bytes: fileBuffer.subarray(0, 16).toString('hex')
+});
+
 
       // -----------------------------
       // CHECK USER EXISTS
