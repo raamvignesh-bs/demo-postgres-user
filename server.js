@@ -762,6 +762,41 @@ app.get(
   }
 );
 
+app.get('/api/cloudinary-upload-test', async (_req, res) => {
+  try {
+
+    const result = await cloudinary.uploader.upload(
+      'https://res.cloudinary.com/demo/image/upload/sample.jpg',
+      {
+        folder: 'demo-postgres-user'
+      }
+    );
+
+    console.log(
+      'Cloudinary test upload successful:',
+      result.public_id
+    );
+
+    return res.json({
+      message: 'Cloudinary test upload successful.',
+      image_url: result.secure_url,
+      public_id: result.public_id
+    });
+
+  } catch (error) {
+
+    console.error(
+      'Cloudinary test upload failed:',
+      error
+    );
+
+    return res.status(500).json({
+      error: 'Cloudinary test upload failed.',
+      details: error.message
+    });
+  }
+});
+
 
 // ==================================================
 // HEALTH CHECK
